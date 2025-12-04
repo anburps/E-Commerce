@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import BaseUserManager, AbstractBaseUser, PermissionsMixin
-
+from django.utils import timezone
 
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -21,9 +21,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     email       = models.EmailField(unique=True)
     first_name  = models.CharField(max_length=30, blank=True)
     last_name   = models.CharField(max_length=30, blank=True)
-    user_name   = models.CharField(max_length=30, blank=True)
     is_staff    = models.BooleanField(default=False)
     is_active   = models.BooleanField(default=True)
+    date_joined = models.DateTimeField(default=timezone.now)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []
@@ -43,5 +43,5 @@ class profile(models.Model):
     phone_number    = models.CharField(max_length=10)
 
     def __str__(self):
-        return self.user
-        
+        return self.user.first_name + " " + self.user.last_name
+
