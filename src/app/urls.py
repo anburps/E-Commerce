@@ -1,16 +1,27 @@
 from django.urls import path
-from .views import *
+from app.views import (
+    VendorListCreateAPIView,
+
+    ProductListCreateAPIView,
+    ProductDetailAPIView,
+
+    OrderListCreateAPIView,
+    OrderDetailAPIView,
+
+    AssignVendorRoleAPIView,
+)
 
 
 urlpatterns = [
-    # URLs for Vendors
-    path("vendors/<int:pk>/", VendorDetailView.as_view(), name="vendor-detail"),
 
-    # URLs for Products
-    path("products/", ProductListCreateView.as_view(), name="product-list-create"),
-    path("products/<pk>/", ProductDetailView.as_view(), name="product-detail"),
+    path('vendors/', VendorListCreateAPIView.as_view(), name='vendor-list-create'),
 
-    # URLs for Orders
-    path("orders/", OrderListCreateView.as_view(), name="order-list-create"),
-    path("orders/<pk>/", OrderDetailView.as_view(), name="order-detail"),
+    path('vendors/<int:vendor_id>/products/',ProductListCreateAPIView.as_view(), name='product-list-create'),
+    path('vendors/<int:vendor_id>/products/<int:pk>/',ProductDetailAPIView.as_view(),name='product-detail' ),
+
+    path('vendors/<int:vendor_id>/orders/',OrderListCreateAPIView.as_view(),name='order-list-create' ),
+    path('vendors/<int:vendor_id>/orders/<int:pk>/',OrderDetailAPIView.as_view(),name='order-detail' ),
+
+    path('vendors/<int:vendor_id>/',AssignVendorRoleAPIView.as_view(),name='assign-vendor-role' ),
+
 ]

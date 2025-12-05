@@ -25,7 +25,7 @@ class UserAdmin(BaseUserAdmin):
     )
 
 
-@admin.register(profile)
+@admin.register(Profile)
 class profileAdmin(admin.ModelAdmin):
     list_display = ('user', 'phone_number')
     list_filter = ('user', 'phone_number')

@@ -1,55 +1,69 @@
+# app/serializers.py
 from rest_framework import serializers
+from app.models import Vendor, UserVendorRole, Product, Order, OrderItem
+from accounts.serializers import UserSerializer
 from accounts.models import User
-from .models import Vendor, UserVendorRole, Product, Order, OrderItem
-
 
 class VendorSerializer(serializers.ModelSerializer):
+    owner = UserSerializer(source='user', read_only=True)
+
     class Meta:
         model = Vendor
-        fields = "__all__"
-
-
-class ProductSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Product
-        fields = "__all__"
-        read_only_fields = ["vendor", "created_at", "id"]
+        fields = ["id", "store_name", "domain", "subdomain", "owner", "created_at"]
 
     def create(self, validated_data):
-        request = self.context.get("request") 
-        user = request.user
+        user = self.context["request"].user
+        vendor = Vendor.objects.create(user=user, **validated_data)
 
-        vendor = Vendor.objects.filter(
-            vendor_users__user=user,
-            vendor_users__role__in=["owner", "staff"]
-        ).first()
+        UserVendorRole.objects.create(
+            user=user,
+            vendor=vendor,
+            role=UserVendorRole.ROLE_OWNER
+        )
+        return vendor
 
-        if not vendor:
-            raise serializers.ValidationError("You are not allowed to create products.")
+class UserVendorRoleSerializer(serializers.ModelSerializer):
+    user = UserSerializer(read_only=True)
 
-        validated_data["vendor"] = vendor
-        
-        return Product.objects.create(**validated_data)
+    class Meta:
+        model = UserVendorRole
+        fields = ["id", "user", "vendor", "role"]
 
+    def create(self, validated_data):
+        user = self.context["user"]
+        vendor = self.context["vendor"]
+        role = validated_data["role"]
+
+        return UserVendorRole.objects.get_or_create(
+            user=user,
+            vendor=vendor,
+            defaults={"role": role}
+        )[0]
+
+class ProductSerializer(serializers.ModelSerializer):
+    vendor = VendorSerializer(read_only=True)
+
+    class Meta:
+        model = Product
+        fields = [
+            "id", "vendor", "name", "description",
+            "price", "stock", "is_active", "created_at"
+        ]
+
+    
 
 class OrderItemSerializer(serializers.ModelSerializer):
-    product_name = serializers.CharField(source='product.name', read_only=True)
+    product_name = serializers.ReadOnlyField(source="product.name")
 
     class Meta:
         model = OrderItem
-        fields = [
-            "id",
-            "product",
-            "product_name",
-            "quantity",
-            "price",
-            "created_at"
-        ]
-        read_only_fields = ["id", "price", "created_at"]
-
+        fields = ["id", "product", "product_name", "quantity", "price"]
+        read_only_fields = ["price"]
 
 class OrderSerializer(serializers.ModelSerializer):
-    items = OrderItemSerializer(many=True, required=True)
+    items = OrderItemSerializer(many=True, read_only=True)
+    customer = UserSerializer(read_only=True)
+    vendor = VendorSerializer(read_only=True)
 
     class Meta:
         model = Order
@@ -62,43 +76,26 @@ class OrderSerializer(serializers.ModelSerializer):
             "items",
             "created_at"
         ]
-        read_only_fields = ["id", "customer", "vendor", "total_amount", "created_at"]
+        read_only_fields = ["total_amount", "items", "customer", "vendor"]
 
     def create(self, validated_data):
         items_data = validated_data.pop("items")
-        request = self.context.get("request")
-        user = request.user
+        user = self.context["request"].user
 
-        # Vendor and role must come from your logic (your view handles assignment)
-        vendor = validated_data.get("vendor")
+        first_product = Product.objects.get(id=items_data[0]["product"].id)
+        vendor = first_product.vendor
 
-        # Create order with placeholder amount (will update later)
         order = Order.objects.create(
             customer=user,
             vendor=vendor,
-            total_amount=0  # will update after items processing
+            total_amount=0
         )
 
-        total_amount = 0
-
-        # Create order items
+        total = 0
         for item in items_data:
             product = item["product"]
             quantity = item["quantity"]
-
-            # Ensure stock available
-            if product.stock < quantity:
-                raise serializers.ValidationError(
-                    f"Not enough stock for {product.name}. Available: {product.stock}"
-                )
-
-            # Deduct stock
-            product.stock -= quantity
-            product.save()
-
             price = product.price
-            item_price_total = price * quantity
-            total_amount += item_price_total
 
             OrderItem.objects.create(
                 order=order,
@@ -107,22 +104,13 @@ class OrderSerializer(serializers.ModelSerializer):
                 price=price
             )
 
-        # Update total amount
-        order.total_amount = total_amount
+            total += quantity * price
+
+        order.total_amount = total
         order.save()
 
         return order
 
-    def update(self, instance, validated_data):
-        """
-        Vendors may update status.
-        Customers cannot modify items or totals.
-        """
-
-        # Only update fields DRF allows
-        status_value = validated_data.get("status", None)
-        if status_value:
-            instance.status = status_value
-            instance.save()
-
-        return instance
+class AssignRoleSerializer(serializers.Serializer):
+    user_id = serializers.IntegerField()
+    role = serializers.ChoiceField(choices=UserVendorRole.ROLE_CHOICES)
