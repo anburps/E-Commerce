@@ -3,10 +3,9 @@ from .models import *
 
 @admin.register(Vendor)
 class VendorAdmin(admin.ModelAdmin):
-    list_display = ('name', 'contact_email', 'domain', 'subdomain')
-    list_filter = ('name', 'contact_email', 'domain', 'subdomain')
-    search_fields = ('name', 'contact_email', 'domain', 'subdomain')
-    ordering = ('name',)
+    list_display = ( 'domain', 'subdomain')
+    list_filter = ( 'domain', 'subdomain')
+    search_fields = ( 'domain', 'subdomain')
 
 @admin.register(UserVendorRole)
 class UserVendorRoleAdmin(admin.ModelAdmin):
